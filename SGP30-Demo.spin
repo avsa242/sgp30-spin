@@ -40,6 +40,7 @@ VAR
 PUB Main{} | i, tmp
 
     setup{}
+    bytefill(@_sn, 0, 6)
     iaq.serialnum(@_sn)
 
     ser.str(string("SN: "))
@@ -47,10 +48,6 @@ PUB Main{} | i, tmp
         ser.hex(_sn[i], 2)
 
     ser.newline
-
-    ser.str(string("FEATURE_SET: "))
-    ser.hex(iaq.deviceid{}, 8)
-
 
     repeat
         ser.position(0, 5)

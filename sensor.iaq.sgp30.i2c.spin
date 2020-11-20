@@ -26,13 +26,12 @@ VAR
 
 OBJ
 
-    i2c : "com.i2c"                             'PASM I2C Driver
-    core: "core.con.sgp30.spin"       'File containing your device's register set
-    time: "time"                                'Basic timing functions
-    crc : "math.crc"
+    i2c : "com.i2c"
+    core: "core.con.sgp30.spin"
+    time: "time"
 
 PUB Null{}
-''This is not a top-level object
+' This is not a top-level object
 
 PUB Start{}: okay
 ' Start using "standard" Propeller I2C pins and 100kHz
@@ -59,23 +58,23 @@ PUB Defaults{}
 PUB CO2Eq{}: ppm
 ' CO2/Carbon Dioxide equivalent concentration
 '   Returns: parts-per-million (400..60_000)
-    return iaqdata{} & $FFFF
+    readreg(core#MEAS_IAQ, 4, @ppm)
+    return (ppm & $FFFF)
 
 PUB DeviceID{}: id
 ' Read device identification
     readreg(core#GET_FEATURES, 2, @id)
 
-PUB IAQData{}: iaq | tmp[2]
-' Read indoor air-quality data
-'   Returns: TVOC | CO2 (MSW|LSW)
-    readreg(core#MEAS_IAQ, 6, @tmp)
-    iaq_adc.byte[0] := tmp.byte[4]    ' CO2
-    iaq_adc.byte[1] := tmp.byte[5]
-    iaq_adc.byte[2] := tmp.byte[1]    ' TVOC
-    iaq_adc.byte[3] := tmp.byte[2]
+PUB IAQData{}: adc
+' Indoor air-quality data ADC words
+'   Returns: TVOC word | CO2 word (MSW|LSW)
+    readreg(core#MEAS_RAW, 4, @adc)
 
 PUB Reset{}
 ' Reset the device
+'   NOTE: There is a delay of approximately 15 seconds after calling
+'   this method, during which the sensor will return 400ppm CO2Eq and
+'   0ppb TVOC
     writereg(core#IAQ_INIT, 0, 0)
 
 PUB SerialNum(ptr_buff)
@@ -86,43 +85,66 @@ PUB SerialNum(ptr_buff)
 PUB TVOC{}: ppb
 ' Total Volatile Organic Compounds concentration
 '   Returns: parts-per-billion (0..60_000)
-    return (iaqdata{} >> 16) & $FFFF
+    readreg(core#MEAS_IAQ, 4, @ppb)
+    return (ppb >> 16) & $FFFF
 
-PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt, tmp, wr_rd_dly
+PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt, rd_data[3], tmp
 ' Read nr_bytes from the device into ptr_buff
-    case reg_nr                                 ' Basic register validation
-        core#MEAS_IAQ:
-        core#GET_IAQ_BASE:
-        core#MEAS_TEST:
-        core#GET_FEATURES:
-        core#MEAS_RAW:
-        core#GET_TVOC_INCBASE:
+    cmd_pkt.byte[0] := SLAVE_WR                 ' form command packet
+    cmd_pkt.byte[1] := reg_nr.byte[1]
+    cmd_pkt.byte[2] := reg_nr.byte[0]
+
+    case reg_nr                                 ' validate command
+        core#MEAS_IAQ, core#GET_IAQ_BASE, core#MEAS_RAW:
+            i2c.start{}
+            i2c.wr_block(@cmd_pkt, 3)
+            i2c.wait(SLAVE_RD)                  ' poll the sensor for readiness
+            repeat tmp from 0 to 5              ' read all bytes, incl. CRC's
+                rd_data.byte[tmp] := i2c.read(tmp == 5)
+            i2c.stop{}
+
+            byte[ptr_buff][0] := rd_data.byte[1]' copy the sensor data to
+            byte[ptr_buff][1] := rd_data.byte[0]'   ptr_buff, but skip over
+            byte[ptr_buff][2] := rd_data.byte[4]'   the CRC bytes, for now
+            byte[ptr_buff][3] := rd_data.byte[3]'
+            return
+        core#MEAS_TEST, core#GET_FEATURES, core#GET_TVOC_INCBASE:
+            i2c.start{}
+            i2c.wr_block(@cmd_pkt, 3)
+            i2c.wait(SLAVE_RD)
+            repeat tmp from 0 to 2
+                rd_data.byte[tmp] := i2c.read(tmp == 2)
+            i2c.stop{}
+
+            byte[ptr_buff][0] := rd_data.byte[1]
+            byte[ptr_buff][1] := rd_data.byte[0]
         core#GET_SN:
+            i2c.start{}
+            i2c.wr_block(@cmd_pkt, 3)
+            i2c.wait(SLAVE_RD)
+            repeat tmp from 0 to 8
+                rd_data.byte[tmp] := i2c.read(tmp == 8)
+            i2c.stop{}
+
+            byte[ptr_buff][0] := rd_data.byte[1]
+            byte[ptr_buff][1] := rd_data.byte[0]
+            byte[ptr_buff][2] := rd_data.byte[4]
+            byte[ptr_buff][3] := rd_data.byte[3]
+            byte[ptr_buff][4] := rd_data.byte[7]
+            byte[ptr_buff][5] := rd_data.byte[6]
+            return
         other:
             return
 
-    cmd_pkt.byte[0] := SLAVE_WR
-    cmd_pkt.byte[1] := reg_nr.byte[1]
-    cmd_pkt.byte[2] := reg_nr.byte[0]
-    i2c.start{}
-    i2c.wr_block(@cmd_pkt, 3)
-
-    i2c.wait(SLAVE_RD)                          ' poll the sensor for readiness
-    repeat tmp from nr_bytes-1 to 0
-        byte[ptr_buff][tmp] := i2c.read(tmp == 0)
-    i2c.stop{}
-
 PRI writeReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
 ' Write nr_bytes to the device from ptr_buff
-    case reg_nr                                 ' Basic register validation
+    case reg_nr
         core#IAQ_INIT:
             cmd_pkt.byte[0] := SLAVE_WR
             cmd_pkt.byte[1] := reg_nr.byte[1]
             cmd_pkt.byte[2] := reg_nr.byte[0]
             i2c.start{}
             i2c.wr_block(@cmd_pkt, 3)
-            repeat tmp from 0 to nr_bytes-1
-                i2c.write(byte[ptr_buff][tmp])
             i2c.stop{}
         core#SET_IAQ_BASE, core#SET_ABS_HUM, core#SET_TVOC_BASE:
             cmd_pkt.byte[0] := SLAVE_WR
@@ -135,7 +157,6 @@ PRI writeReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
             i2c.stop{}
         other:
             return
-
 
 DAT
 {
