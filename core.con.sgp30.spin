@@ -16,6 +16,7 @@ CON
     SLAVE_ADDR          = $58 << 1
 
     T_POR               = 1_000                 ' usec
+    T_IDLE              = 500
     T_IAQ_INIT          = 10_000
     T_MEAS_IAQ          = 12_000
     T_GET_IAQ_BASE      = 10_000
@@ -25,6 +26,7 @@ CON
     T_MEAS_RAW          = 25_000
     T_GET_TVOC_INCBASE  = 10_000
     T_SET_TVOC_BASE     = 10_000
+    T_GET_SN            = T_IDLE
 
 ' Commands
     IAQ_INIT            = $2003

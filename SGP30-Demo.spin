@@ -30,19 +30,40 @@ OBJ
     ser     : "com.serial.terminal.ansi"
     time    : "time"
     iaq     : "sensor.iaq.sgp30.i2c"
+    int     : "string.integer"
 
 VAR
 
     byte _sn[6]
+    byte _tmp[6]
 
-PUB Main{} | i
+PUB Main{} | i, tmp
 
     setup{}
     iaq.serialnum(@_sn)
+
+    ser.str(string("SN: "))
     repeat i from 0 to 5
         ser.hex(_sn[i], 2)
 
+    ser.newline
+
+    ser.str(string("FEATURE_SET: "))
+    ser.hex(iaq.deviceid{}, 8)
+
+
     repeat
+        ser.position(0, 5)
+        ser.str(string("CO2Eq: "))
+        ser.str(int.decpadded(iaq.co2eq, 5))
+        ser.str(string("ppm"))
+        ser.newline
+
+        ser.str(string("TVOC: "))
+        ser.str(int.decpadded(iaq.tvoc, 5))
+        ser.str(string("ppb"))
+        ser.newline
+        time.msleep(1000)                       ' 1Hz rate for best performance
 
 PUB Setup{}
 
