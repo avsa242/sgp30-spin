@@ -22,7 +22,7 @@ P1/SPIN1:
 ## Compiler Compatibility
 
 * P1/SPIN1: OpenSpin (tested with 1.00.81)
-* ~~P2/SPIN2: FastSpin (tested with 5.0.0)~~ _(not yet implemented)_
+* ~~P2/SPIN2: FlexSpin (tested with 5.0.0)~~ _(not yet implemented)_
 * ~~BST~~ (incompatible - no preprocessor)
 * ~~Propeller Tool~~ (incompatible - no preprocessor)
 * ~~PNut~~ (incompatible - no preprocessor)
