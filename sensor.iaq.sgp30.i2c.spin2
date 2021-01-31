@@ -118,6 +118,7 @@ PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt, rd_data[3], tmp
         core.GET_SN:
             i2c.start()
             i2c.wrblock_lsbf(@cmd_pkt, 3)
+            waitus(core.T_GET_SN)
             i2c.wait(SLAVE_RD)
             i2c.rdblock_lsbf(@rd_data, 9, i2c.NAK)
             i2c.stop()
