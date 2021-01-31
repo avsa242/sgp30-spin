@@ -126,12 +126,12 @@ PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt, rd_data[3], tmp
             i2c.rdblock_lsbf(@rd_data, 9, i2c#NAK)
             i2c.stop{}
 
-            byte[ptr_buff][0] := rd_data.byte[1]
-            byte[ptr_buff][1] := rd_data.byte[0]
-            byte[ptr_buff][2] := rd_data.byte[4]
-            byte[ptr_buff][3] := rd_data.byte[3]
-            byte[ptr_buff][4] := rd_data.byte[7]
-            byte[ptr_buff][5] := rd_data.byte[6]
+            byte[ptr_buff][0] := rd_data.byte[0]
+            byte[ptr_buff][1] := rd_data.byte[1]
+            byte[ptr_buff][2] := rd_data.byte[3]
+            byte[ptr_buff][3] := rd_data.byte[4]
+            byte[ptr_buff][4] := rd_data.byte[6]
+            byte[ptr_buff][5] := rd_data.byte[7]
             return
         other:
             return
