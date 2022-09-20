@@ -1,12 +1,12 @@
 {
     --------------------------------------------
-    Filename: sensor.iaq.sgp30.i2c.spin
+    Filename: sensor.iaq.sgp30.spin
     Author: Jesse Burt
     Description: Driver for the Sensirion SGP30
         Indoor Air Quality sensor
     Copyright (c) 2022
     Started Nov 20, 2020
-    Updated May 25, 2022
+    Updated Sep 20, 2022
     See end of file for terms of use.
     --------------------------------------------
 }
@@ -36,14 +36,14 @@ OBJ
     time: "time"                                ' timekeeping methods
     crc : "math.crc"                            ' CRC routines
 
-PUB Null{}
+PUB null{}
 ' This is not a top-level object
 
-PUB Start{}: status
+PUB start{}: status
 ' Start using "standard" Propeller I2C pins and 100kHz
     status := startx(DEF_SCL, DEF_SDA, DEF_HZ)
 
-PUB Startx(SCL_PIN, SDA_PIN, I2C_HZ): status
+PUB startx(SCL_PIN, SDA_PIN, I2C_HZ): status
 ' Start using custom IO pins and I2C bus frequency
     if lookdown(SCL_PIN: 0..31) and lookdown(SDA_PIN: 0..31) and {
 }   I2C_HZ =< core#I2C_MAX_FREQ                 ' validate pins and bus freq
@@ -56,14 +56,14 @@ PUB Startx(SCL_PIN, SDA_PIN, I2C_HZ): status
     ' Lastly - make sure you have at least one free core/cog
     return FALSE
 
-PUB Stop{}
-
+PUB stop{}
+' Stop the driver
     i2c.deinit{}
 
-PUB Defaults{}
+PUB defaults{}
 ' Set factory defaults
 
-PUB CO2Eq{}: ppm
+PUB co2eq{}: ppm
 ' CO2/Carbon Dioxide equivalent concentration, in parts-per-million/ppm
 '   Returns:
 '       u16: 400..60_000
@@ -74,23 +74,23 @@ PUB CO2Eq{}: ppm
     else
         return -1
 
-PUB DeviceID{}: id
+PUB deviceid{}: id
 ' Read device identification
     readreg(core#GET_FEATURES, 2, @id)
 
-PUB IAQData{}: adc
+PUB iaqdata{}: adc
 ' Indoor air-quality data ADC words
 '   Returns: TVOC word | CO2 word (MSW|LSW)
     readreg(core#MEAS_RAW, 4, @adc)
 
-PUB Reset{}
+PUB reset{}
 ' Reset the device
 '   NOTE: There is a delay of approximately 15 seconds after calling
 '   this method, during which the sensor will return 400ppm CO2Eq and
 '   0ppb TVOC
     writereg(core#IAQ_INIT, 0, 0)
 
-PUB SerialNum(ptr_buff): status
+PUB serialnum(ptr_buff): status
 ' Read device Serial Number
 '   NOTE: ptr_buff must be at least 6 bytes in length
 '   Returns:
@@ -102,7 +102,7 @@ PUB SerialNum(ptr_buff): status
     else
         return -1
 
-PUB TVOC{}: ppb
+PUB tvoc{}: ppb
 ' Total Volatile Organic Compounds concentration, in parts-per-billion/ppb
 '   Returns:
 '       u16 (0..60_000)
@@ -113,7 +113,7 @@ PUB TVOC{}: ppb
     else
         return -1
 
-PRI readReg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
+PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
 ' Read nr_bytes from the device into ptr_buff
     cmd_pkt.byte[0] := SLAVE_WR                 ' form command packet
     cmd_pkt.byte[1] := reg_nr.byte[1]
@@ -174,7 +174,7 @@ PRI readReg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
         other:
             return
 
-PRI writeReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
+PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
 ' Write nr_bytes to the device from ptr_buff
     case reg_nr
         core#IAQ_INIT:

@@ -44,7 +44,7 @@ CON
     GET_SN              = $3682
 
 
-PUB Null{}
+PUB null{}
 ' This is not a top-level object
 
 DAT
