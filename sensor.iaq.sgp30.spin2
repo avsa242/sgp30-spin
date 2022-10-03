@@ -6,21 +6,18 @@
         Indoor Air Quality sensor (P2 version)
     Copyright (c) 2022
     Started Jan 30, 2021
-    Updated Sep 20, 2022
+    Updated Oct 3, 2022
     See end of file for terms of use.
     --------------------------------------------
 }
 
 CON
 
-    SLAVE_WR          = core.SLAVE_ADDR
-    SLAVE_RD          = core.SLAVE_ADDR|1
+    SLAVE_WR        = core.SLAVE_ADDR
+    SLAVE_RD        = core.SLAVE_ADDR|1
 
-    DEF_HZ            = 100_000
-    I2C_MAX_FREQ      = core.I2C_MAX_FREQ
-
-VAR
-
+    DEF_HZ          = 100_000
+    I2C_MAX_FREQ    = core.I2C_MAX_FREQ
 
 OBJ
 
@@ -33,8 +30,7 @@ PUB null()
 
 PUB startx(SCL_PIN, SDA_PIN, I2C_HZ=DEF_HZ): status
 ' Start using custom IO pins and I2C bus frequency
-    if lookdown(SCL_PIN: 0..63) and lookdown(SDA_PIN: 0..63) and {
-}   I2C_HZ <= core.I2C_MAX_FREQ                 ' validate pins and bus freq
+    if (lookdown(SCL_PIN: 0..63) and lookdown(SDA_PIN: 0..63) and I2C_HZ <= core.I2C_MAX_FREQ)
         if (status := i2c.init(SCL_PIN, SDA_PIN, I2C_HZ))
             waitus(core.T_POR)                  ' wait for device startup
             if i2c.present(SLAVE_WR)            ' test device bus presence
@@ -50,8 +46,9 @@ PUB stop()
 
 PUB defaults()
 ' Set factory defaults
+    reset{}
 
-PUB co2eq(): ppm
+PUB co2_equiv(): ppm
 ' CO2/Carbon Dioxide equivalent concentration, in parts-per-million/ppm
 '   Returns:
 '       u16: 400..60_000
@@ -62,29 +59,27 @@ PUB co2eq(): ppm
     else
         return -1
 
-PUB deviceid(): id
+PUB dev_id(): id
 ' Read device identification
     readreg(core.GET_FEATURES, 2, @id)
 
-PUB iaqdata(): adc
+PUB iaq_data(): adc
 ' Indoor air-quality data ADC words
-'   Returns: TVOC word | CO2 word (MSW|LSW)
+'   Returns: [31..16]: TVOC, [15..0]: CO2
     readreg(core.MEAS_RAW, 4, @adc)
 
 PUB reset()
 ' Reset the device
-'   NOTE: There is a delay of approximately 15 seconds after calling
-'   this method, during which the sensor will return 400ppm CO2Eq and
-'   0ppb TVOC
+' NOTE: There is a delay of approximately 15 seconds after calling this method, during which
+'       co2_equiv() will return 400ppm and tvoc() will return 0ppb
     writereg(core.IAQ_INIT, 0, 0)
 
-PUB serialnum(ptr_buff): status
+PUB serial_num(ptr_buff): status
 ' Read device Serial Number
-'   NOTE: ptr_buff must be at least 6 bytes in length
-'   Returns:
-'       0 on success
-'       or -1, if data failed CRC
-'           (data copied to buffer should not be trusted in this case)
+' NOTE: ptr_buff must be at least 6 bytes in length
+' Returns:
+'    0: success
+'   -1: data failed CRC (data copied to buffer should not be trusted in this case)
     if (readreg(core.GET_SN, 6, ptr_buff) == 0)
         return
     else
@@ -92,9 +87,9 @@ PUB serialnum(ptr_buff): status
 
 PUB tvoc(): ppb
 ' Total Volatile Organic Compounds concentration, in parts-per-billion/ppb
-'   Returns:
-'       u16 (0..60_000)
-'       or -1, if data failed CRC
+' Returns:
+'   u16 (0..60_000)
+'   or -1, if data failed CRC
     ppb := 0
     if (readreg(core.MEAS_IAQ, 2, @ppb) == 0)
         return ((ppb >> 16) & $FFFF)

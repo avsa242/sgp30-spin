@@ -5,7 +5,7 @@
     Description: Demo of the SGP30 driver
     Copyright (c) 2022
     Started Nov 20, 2020
-    Updated Aug 20, 2022
+    Updated Oct 3, 2022
     See end of file for terms of use.
     --------------------------------------------
 }
@@ -42,13 +42,13 @@ PUB main{}
 
     iaq.reset{}                                 ' reset first for reliability
 
-    iaq.serialnum(@_sn)
+    iaq.serial_num(@_sn)
 
     ser.printf3(string("SN: %04.4x%04.4x%04.4x\n\r"), _sn[0], _sn[1], _sn[2])
 
     repeat
         ser.position(0, 5)
-        ser.printf1(string("CO2Eq: %5.5dppm\n\r"), iaq.co2eq{})
+        ser.printf1(string("CO2Eq: %5.5dppm\n\r"), iaq.co2_equiv{})
         ser.printf1(string("TVOC: %5.5dppb"), iaq.tvoc{})
         time.msleep(1000)                       ' 1Hz rate for best performance
 
