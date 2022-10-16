@@ -6,7 +6,7 @@
         Indoor Air Quality sensor
     Copyright (c) 2022
     Started Nov 20, 2020
-    Updated Oct 3, 2022
+    Updated Oct 16, 2022
     See end of file for terms of use.
     --------------------------------------------
 }
@@ -125,7 +125,7 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
             repeat 2
                 tmp := i2c.rdword_msbf(i2c#ACK)
                 crcrd := i2c.rd_byte(rdcnt == 1)' read CRC; NAK if last byte
-                if (crcrd == crc.sensirioncrc8(@tmp, 2))
+                if (crcrd == crc.sensirion_crc8(@tmp, 2))
                     word[ptr_buff][rdcnt++] := tmp
                     next
                 else
@@ -141,7 +141,7 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
             tmp := i2c.rdword_msbf(i2c#ACK)
             crcrd := i2c.rd_byte(i2c#NAK)
             status := 0
-            if (crcrd == crc.sensirioncrc8(@tmp, 2))
+            if (crcrd == crc.sensirion_crc8(@tmp, 2))
                 word[ptr_buff][0] := tmp
             else
                 status := -1
@@ -158,7 +158,7 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
             repeat 3
                 tmp := i2c.rdword_msbf(i2c#ACK)
                 crcrd := i2c.rd_byte(rdcnt == 2)' read CRC; NAK if last byte
-                if (crcrd == crc.sensirioncrc8(@tmp, 2))
+                if (crcrd == crc.sensirion_crc8(@tmp, 2))
                     word[ptr_buff][rdcnt++] := tmp
                     next
                 else
