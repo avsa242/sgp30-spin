@@ -1,33 +1,30 @@
-i{
-    --------------------------------------------
-    Filename: SGP30-Demo.spin2
-    Author: Jesse Burt
-    Description: Demo of the SGP30 driver (P2 version)
-    Copyright (c) 2023
-    Started Jan 30, 2021
-    Updated Jul 15, 2023
-    See end of file for terms of use.
-    --------------------------------------------
+{
+----------------------------------------------------------------------------------------------------
+    Filename:       SGP30-Demo.spin2
+    Description:    Demo of the SGP30 driver
+    Author:         Jesse Burt
+    Started:        Jan 30, 2021
+    Updated:        Sep 13, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
 
 CON
 
-    _clkfreq    = cfg._clkfreq_def
-    _xtlfreq    = cfg._xtlfreq
+    _clkfreq    = 180_000_000
+    _xtlfreq    = 20_000_000
 
-' -- User-defined constants
-    SER_BAUD    = 2_000_000
-' --
 
 OBJ
 
-    cfg:    "boardcfg.p2eval"
-    ser:    "com.serial.terminal.ansi"
+    ser:    "com.serial.terminal.ansi" | SER_BAUD=2_000_000
     iaq:    "sensor.iaq.sgp30" | SCL=0, SDA=1, I2C_FREQ=400_000
+
 
 VAR
 
     word _sn[3]
+
 
 PUB main()
 
@@ -45,20 +42,24 @@ PUB main()
         ser.printf(@"TVOC: %5.5dppb", iaq.tvoc())
         waitms(1000)                            ' 1Hz rate for best performance
 
+
 PUB setup()
 
-    ser.start(SER_BAUD)
+    ser.start()
+
     ser.clear()
     ser.strln(@"Serial terminal started")
+
     if ( iaq.start() )
         ser.strln(@"SGP30 driver started")
     else
         ser.strln(@"SGP30 driver failed to start - halting")
         repeat
 
+
 DAT
 {
-Copyright 2023 Jesse Burt
+Copyright 2024 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,

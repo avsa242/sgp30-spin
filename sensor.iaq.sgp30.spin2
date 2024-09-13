@@ -1,65 +1,72 @@
 {
-    --------------------------------------------
-    Filename: sensor.iaq.sgp30.spin2
-    Author: Jesse Burt
-    Description: Driver for the Sensirion SGP30
-        Indoor Air Quality sensor (P2 version)
-    Copyright (c) 2023
-    Started Jan 30, 2021
-    Updated Jul 15, 2023
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       sensor.iaq.sgp30.spin
+    Description:    Driver for the Sensirion SGP30 Indoor Air Quality sensor
+    Author:         Jesse Burt
+    Started:        Jan 30, 2021
+    Updated:        Sep 13, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
 
 CON
 
+    { default I/O settings; these can be overridden in the parent object }
+    SCL         = 0
+    SDA         = 1
+    I2C_FREQ    = 100_000
+    I2C_ADDR    = 0
+
+
     SLAVE_WR    = core.SLAVE_ADDR
     SLAVE_RD    = core.SLAVE_ADDR|1
-
-    DEF_SCL     = 0
-    DEF_SDA     = 1
-    DEF_HZ      = 100_000
-    DEF_ADDR    = 0
     I2C_MAX_FREQ= core.I2C_MAX_FREQ
 
-    { default I/O settings; these can be overridden in the parent object }
-    SCL         = DEF_SCL
-    SDA         = DEF_SDA
-    I2C_FREQ    = DEF_HZ
-    I2C_ADDR    = DEF_ADDR
 
 OBJ
 
-    i2c : "com.i2c"                             ' I2C engine
-    core: "core.con.sgp30"                      ' HW-specific constants
-    crc : "math.crc"                            ' CRC routines
+    i2c:    "com.i2c"                           ' I2C engine
+    core:   "core.con.sgp30"                    ' HW-specific constants
+    crc:    "math.crc"                          ' CRC routines
+
 
 PUB null()
 ' This is not a top-level object
+
 
 PUB start(): status
 ' Start using default I/O settings
     return startx(SCL, SDA, I2C_FREQ)
 
-PUB startx(SCL_PIN, SDA_PIN, I2C_HZ=DEF_HZ): status
-' Start using custom IO pins and I2C bus frequency
-    if (lookdown(SCL_PIN: 0..63) and lookdown(SDA_PIN: 0..63) and I2C_HZ <= core.I2C_MAX_FREQ)
-        if (status := i2c.init(SCL_PIN, SDA_PIN, I2C_HZ))
+
+PUB startx(SCL_PIN, SDA_PIN, I2C_HZ): status
+' Start the driver with custom I/O settings
+'   SCL_PIN:    I2C clock, 0..63
+'   SDA_PIN:    I2C data, 0..63
+'   I2C_HZ:     I2C clock speed (max official specification is 400_000 but is unenforced)
+'   Returns:
+'       cog ID+1 of I2C engine on success
+'       0 on failure
+    if ( lookdown(SCL_PIN: 0..63) and lookdown(SDA_PIN: 0..63) )
+        if ( status := i2c.init(SCL_PIN, SDA_PIN, I2C_HZ) )
             waitus(core.T_POR)                  ' wait for device startup
-            if i2c.present(SLAVE_WR)            ' test device bus presence
+            if ( i2c.present(SLAVE_WR) )        ' test device bus presence
                 return
     ' if this point is reached, something above failed
     ' Re-check I/O pin assignments, bus speed, connections, power
     ' Lastly - make sure you have at least one free core/cog
     return FALSE
 
+
 PUB stop()
 ' Stop the driver
     i2c.deinit()
 
+
 PUB defaults()
 ' Set factory defaults
-    reset{}
+    reset()
+
 
 PUB co2_equiv(): ppm
 ' CO2/Carbon Dioxide equivalent concentration, in parts-per-million/ppm
@@ -67,19 +74,24 @@ PUB co2_equiv(): ppm
 '       u16: 400..60_000
 '       or -1, if data failed CRC check
     ppm := 0
-    if (readreg(core.MEAS_IAQ, 2, @ppm) == 0)
+    if ( readreg(core.MEAS_IAQ, 2, @ppm) == 0 )
         return (ppm & $FFFF)
     else
         return -1
 
+
 PUB dev_id(): id
 ' Read device identification
+    id := 0
     readreg(core.GET_FEATURES, 2, @id)
+
 
 PUB iaq_data(): adc
 ' Indoor air-quality data ADC words
 '   Returns: [31..16]: TVOC, [15..0]: CO2
+    adc := 0
     readreg(core.MEAS_RAW, 4, @adc)
+
 
 PUB reset()
 ' Reset the device
@@ -87,16 +99,19 @@ PUB reset()
 '       co2_equiv() will return 400ppm and tvoc() will return 0ppb
     writereg(core.IAQ_INIT, 0, 0)
 
+
 PUB serial_num(ptr_buff): status
 ' Read device Serial Number
-' NOTE: ptr_buff must be at least 6 bytes in length
+'   ptr_buff: pointer to array
+' NOTE: ptr_buff must point to an array at least 6 bytes in length
 ' Returns:
 '    0: success
 '   -1: data failed CRC (data copied to buffer should not be trusted in this case)
-    if (readreg(core.GET_SN, 6, ptr_buff) == 0)
+    if ( readreg(core.GET_SN, 6, ptr_buff) == 0 )
         return
     else
         return -1
+
 
 PUB tvoc(): ppb
 ' Total Volatile Organic Compounds concentration, in parts-per-billion/ppb
@@ -108,6 +123,7 @@ PUB tvoc(): ppb
         return ((ppb >> 16) & $FFFF)
     else
         return -1
+
 
 PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
 ' Read nr_bytes from the device into ptr_buff
@@ -170,6 +186,7 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
         other:
             return
 
+
 PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
 ' Write nr_bytes to the device from ptr_buff
     case reg_nr
@@ -191,9 +208,10 @@ PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
         other:
             return
 
+
 DAT
 {
-Copyright 2023 Jesse Burt
+Copyright 2024 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,

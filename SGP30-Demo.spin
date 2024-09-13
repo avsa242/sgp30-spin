@@ -1,40 +1,37 @@
 {
-    --------------------------------------------
-    Filename: SGP30-Demo.spin
-    Author: Jesse Burt
-    Description: Demo of the SGP30 driver
-    Copyright (c) 2023
-    Started Nov 20, 2020
-    Updated Jul 15, 2023
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       SGP30-Demo.spin
+    Description:    Demo of the SGP30 driver
+    Author:         Jesse Burt
+    Started:        Nov 20, 2020
+    Updated:        Sep 13, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
 
 CON
 
-    _clkmode    = cfg#_clkmode
-    _xinfreq    = cfg#_xinfreq
+    _clkmode    = xtal1+pll16x
+    _xinfreq    = 5_000_000
 
-' -- User-defined constants
-    SER_BAUD    = 115_200
-' --
 
 OBJ
 
-    cfg:    "boardcfg.flip"
-    ser:    "com.serial.terminal.ansi"
     time:   "time"
+    ser:    "com.serial.terminal.ansi" | SER_BAUD=115_200
     iaq:    "sensor.iaq.sgp30" | SCL=28, SDA=29, I2C_FREQ=400_000
+
 
 VAR
 
     word _sn[3]
 
-PUB main{}
 
-    setup{}
+PUB main()
 
-    iaq.reset{}                                 ' reset first for reliability
+    setup()
+
+    iaq.reset()                                 ' reset first for reliability
 
     iaq.serial_num(@_sn)
 
@@ -42,25 +39,28 @@ PUB main{}
 
     repeat
         ser.pos_xy(0, 5)
-        ser.printf1(string("CO2Eq: %5.5dppm\n\r"), iaq.co2_equiv{})
-        ser.printf1(string("TVOC: %5.5dppb"), iaq.tvoc{})
+        ser.printf1(@"CO2Eq: %5.5dppm\n\r", iaq.co2_equiv())
+        ser.printf1(@"TVOC: %5.5dppb", iaq.tvoc())
         time.msleep(1000)                       ' 1Hz rate for best performance
 
-PUB setup{}
 
-    ser.start(SER_BAUD)
+PUB setup()
+
+    ser.start()
     time.msleep(30)
-    ser.clear{}
-    ser.strln(string("Serial terminal started"))
-    if ( iaq.start{} )
-        ser.strln(string("SGP30 driver started"))
+    ser.clear()
+    ser.strln(@"Serial terminal started")
+
+    if ( iaq.start() )
+        ser.strln(@"SGP30 driver started")
     else
-        ser.strln(string("SGP30 driver failed to start - halting"))
+        ser.strln(@"SGP30 driver failed to start - halting")
         repeat
+
 
 DAT
 {
-Copyright 2023 Jesse Burt
+Copyright 2024 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
