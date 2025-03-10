@@ -4,8 +4,8 @@
     Description:    Driver for the Sensirion SGP30 Indoor Air Quality sensor
     Author:         Jesse Burt
     Started:        Jan 30, 2021
-    Updated:        Sep 13, 2024
-    Copyright (c) 2024 - See end of file for terms of use.
+    Updated:        Mar 10, 2025
+    Copyright (c) 2025 - See end of file for terms of use.
 ----------------------------------------------------------------------------------------------------
 }
 
@@ -30,11 +30,16 @@ OBJ
     crc:    "math.crc"                          ' CRC routines
 
 
+VAR
+
+    word _serial_num[3]
+
+
 PUB null()
 ' This is not a top-level object
 
 
-PUB start(): status
+PUB start(): s
 ' Start using default I/O settings
     return startx(SCL, SDA, I2C_FREQ)
 
@@ -68,65 +73,67 @@ PUB defaults()
     reset()
 
 
-PUB co2_equiv(): ppm
-' CO2/Carbon Dioxide equivalent concentration, in parts-per-million/ppm
+PUB co2_equiv(): c
+' CO2/Carbon Dioxide equivalent concentration
 '   Returns:
-'       u16: 400..60_000
+'       parts-per-million (u16, 400..60_000)
 '       or -1, if data failed CRC check
-    ppm := 0
-    if ( readreg(core.MEAS_IAQ, 2, @ppm) == 0 )
-        return (ppm & $FFFF)
-    else
-        return -1
+    c := readreg(core.MEAS_IAQ, 2)
+
+    if ( c < 0 )
+        return
+
+    return (c & $ffff)
 
 
-PUB dev_id(): id
+PUB dev_id(): i
 ' Read device identification
-    id := 0
-    readreg(core.GET_FEATURES, 2, @id)
+    return readreg(core.GET_FEATURES, 2)
 
 
-PUB iaq_data(): adc
+PUB iaq_data(): w
 ' Indoor air-quality data ADC words
 '   Returns: [31..16]: TVOC, [15..0]: CO2
-    adc := 0
-    readreg(core.MEAS_RAW, 4, @adc)
+    return readreg(core.MEAS_RAW, 4)
 
 
 PUB reset()
 ' Reset the device
 ' NOTE: There is a delay of approximately 15 seconds after calling this method, during which
 '       co2_equiv() will return 400ppm and tvoc() will return 0ppb
-    writereg(core.IAQ_INIT, 0, 0)
+    writereg(core.IAQ_INIT)
 
 
-PUB serial_num(ptr_buff): status
+PUB serial_num(p_buff): s
 ' Read device Serial Number
-'   ptr_buff: pointer to array
-' NOTE: ptr_buff must point to an array at least 6 bytes in length
+'   p_buff: pointer to array
+' NOTE: p_buff must point to an array at least 6 bytes in length
 ' Returns:
 '    0: success
 '   -1: data failed CRC (data copied to buffer should not be trusted in this case)
-    if ( readreg(core.GET_SN, 6, ptr_buff) == 0 )
+    s := readreg(core.GET_SN, 6)
+
+    if ( s < 0 )
         return
-    else
-        return -1
+
+    bytemove(p_buff, @_serial_num, 6)
 
 
-PUB tvoc(): ppb
-' Total Volatile Organic Compounds concentration, in parts-per-billion/ppb
+PUB tvoc(): c
+' Total Volatile Organic Compounds concentration
 ' Returns:
-'   u16 (0..60_000)
+'   parts-per-billion (u16, 0..60_000)
 '   or -1, if data failed CRC
-    ppb := 0
-    if (readreg(core.MEAS_IAQ, 2, @ppb) == 0)
-        return ((ppb >> 16) & $FFFF)
-    else
-        return -1
+    c := readreg(core.MEAS_IAQ, 2)
+
+    if ( c < 0 )
+        return
+
+    return ( (c >> 16) & $ffff)
 
 
-PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
-' Read nr_bytes from the device into ptr_buff
+PRI readreg(reg_nr, len=1): s | cmd_pkt, tmp, crcrd, rdcnt
+' Read register value
     cmd_pkt.byte[0] := SLAVE_WR                 ' form command packet
     cmd_pkt.byte[1] := reg_nr.byte[1]
     cmd_pkt.byte[2] := reg_nr.byte[0]
@@ -137,19 +144,17 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
             i2c.wrblock_lsbf(@cmd_pkt, 3)
             i2c.wait(SLAVE_RD)                  ' poll the sensor for readiness
 
-            rdcnt := 0
-            status := 0
-            repeat 2
+            repeat rdcnt from 0 to 1
                 tmp := i2c.rdword_msbf(i2c.ACK)
                 crcrd := i2c.rd_byte(rdcnt == 1)' read CRC; NAK if last byte
                 if (crcrd == crc.sensirion_crc8(@tmp, 2))
-                    word[ptr_buff][rdcnt++] := tmp
+                    s.word[rdcnt] := tmp
                     next
                 else
-                    status := -1                ' CRC error
+                    s := -1                     ' CRC error
                     quit
             i2c.stop()
-            return status
+            return s
         core.MEAS_TEST, core.GET_FEATURES, core.GET_TVOC_INCBASE:
             i2c.start()
             i2c.wrblock_lsbf(@cmd_pkt, 3)
@@ -157,38 +162,37 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff): status | cmd_pkt, tmp, crcrd, rdcnt
 
             tmp := i2c.rdword_msbf(i2c.ACK)
             crcrd := i2c.rd_byte(i2c.NAK)
-            status := 0
+            s := 0
             if (crcrd == crc.sensirion_crc8(@tmp, 2))
-                word[ptr_buff][0] := tmp
+                s := tmp
             else
-                status := -1
+                s := -1
             i2c.stop()
-            return status
+            return s
         core.GET_SN:
             i2c.start()
             i2c.wrblock_lsbf(@cmd_pkt, 3)
             waitus(core.T_GET_SN)
             i2c.wait(SLAVE_RD)
 
-            rdcnt := 0
-            status := 0
-            repeat 3
+            s := 0
+            repeat rdcnt from 0 to 2
                 tmp := i2c.rdword_msbf(i2c.ACK)
                 crcrd := i2c.rd_byte(rdcnt == 2)' read CRC; NAK if last byte
                 if (crcrd == crc.sensirion_crc8(@tmp, 2))
-                    word[ptr_buff][rdcnt++] := tmp
+                    word[@_serial_num][rdcnt] := tmp
                     next
                 else
-                    status := -1                ' CRC error
+                    s := -1                     ' CRC error
                     quit
             i2c.stop()
-            return status
+            return s
         other:
             return
 
 
-PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
-' Write nr_bytes to the device from ptr_buff
+PRI writereg(reg_nr, len=0, val=0) | cmd_pkt, tmp
+' Write register/issue command
     case reg_nr
         core.IAQ_INIT:
             cmd_pkt.byte[0] := SLAVE_WR
@@ -203,7 +207,7 @@ PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
             cmd_pkt.byte[2] := reg_nr.byte[0]
             i2c.start()
             i2c.wrblock_lsbf(@cmd_pkt, 3)
-            i2c.wrblock_lsbf(ptr_buff, nr_bytes)
+            i2c.wrblock_lsbf(@val, len)
             i2c.stop()
         other:
             return
@@ -211,7 +215,7 @@ PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt[2], tmp
 
 DAT
 {
-Copyright 2024 Jesse Burt
+Copyright 2025 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
