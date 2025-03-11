@@ -4,7 +4,7 @@
     Description:    Driver for the Sensirion SGP30 Indoor Air Quality sensor
     Author:         Jesse Burt
     Started:        Jan 30, 2021
-    Updated:        Mar 10, 2025
+    Updated:        Mar 11, 2025
     Copyright (c) 2025 - See end of file for terms of use.
 ----------------------------------------------------------------------------------------------------
 }
@@ -78,7 +78,7 @@ PUB co2_equiv(): c
 '   Returns:
 '       parts-per-million (u16, 400..60_000)
 '       or -1, if data failed CRC check
-    c := readreg(core.MEAS_IAQ, 2)
+    c := readreg(core.MEAS_IAQ)
 
     if ( c < 0 )
         return
@@ -88,13 +88,13 @@ PUB co2_equiv(): c
 
 PUB dev_id(): i
 ' Read device identification
-    return readreg(core.GET_FEATURES, 2)
+    return readreg(core.GET_FEATURES)
 
 
 PUB iaq_data(): w
 ' Indoor air-quality data ADC words
 '   Returns: [31..16]: TVOC, [15..0]: CO2
-    return readreg(core.MEAS_RAW, 4)
+    return readreg(core.MEAS_RAW)
 
 
 PUB reset()
@@ -111,7 +111,7 @@ PUB serial_num(p_buff): s
 ' Returns:
 '    0: success
 '   -1: data failed CRC (data copied to buffer should not be trusted in this case)
-    s := readreg(core.GET_SN, 6)
+    s := readreg(core.GET_SN)
 
     if ( s < 0 )
         return
@@ -124,7 +124,7 @@ PUB tvoc(): c
 ' Returns:
 '   parts-per-billion (u16, 0..60_000)
 '   or -1, if data failed CRC
-    c := readreg(core.MEAS_IAQ, 2)
+    c := readreg(core.MEAS_IAQ)
 
     if ( c < 0 )
         return
@@ -132,86 +132,58 @@ PUB tvoc(): c
     return ( (c >> 16) & $ffff)
 
 
-PRI readreg(reg_nr, len=1): s | cmd_pkt, tmp, crcrd, rdcnt
+PRI readreg(reg_nr): s | cmd_pkt, tmp, crcrd, rdcnt, len
 ' Read register value
     cmd_pkt.byte[0] := SLAVE_WR                 ' form command packet
     cmd_pkt.byte[1] := reg_nr.byte[1]
     cmd_pkt.byte[2] := reg_nr.byte[0]
+    i2c.start()
+    i2c.wrblock_lsbf(@cmd_pkt, 3)
+
 
     case reg_nr                                 ' validate command
         core.MEAS_IAQ, core.GET_IAQ_BASE, core.MEAS_RAW:
-            i2c.start()
-            i2c.wrblock_lsbf(@cmd_pkt, 3)
-            i2c.wait(SLAVE_RD)                  ' poll the sensor for readiness
-
-            repeat rdcnt from 0 to 1
-                tmp := i2c.rdword_msbf(i2c.ACK)
-                crcrd := i2c.rd_byte(rdcnt == 1)' read CRC; NAK if last byte
-                if (crcrd == crc.sensirion_crc8(@tmp, 2))
-                    s.word[rdcnt] := tmp
-                    next
-                else
-                    s := -1                     ' CRC error
-                    quit
-            i2c.stop()
-            return s
+            len := 2
         core.MEAS_TEST, core.GET_FEATURES, core.GET_TVOC_INCBASE:
-            i2c.start()
-            i2c.wrblock_lsbf(@cmd_pkt, 3)
-            i2c.wait(SLAVE_RD)
-
-            tmp := i2c.rdword_msbf(i2c.ACK)
-            crcrd := i2c.rd_byte(i2c.NAK)
-            s := 0
-            if (crcrd == crc.sensirion_crc8(@tmp, 2))
-                s := tmp
-            else
-                s := -1
-            i2c.stop()
-            return s
+            len := 1
         core.GET_SN:
-            i2c.start()
-            i2c.wrblock_lsbf(@cmd_pkt, 3)
+            len := 3
             waitus(core.T_GET_SN)
-            i2c.wait(SLAVE_RD)
-
-            s := 0
-            repeat rdcnt from 0 to 2
-                tmp := i2c.rdword_msbf(i2c.ACK)
-                crcrd := i2c.rd_byte(rdcnt == 2)' read CRC; NAK if last byte
-                if (crcrd == crc.sensirion_crc8(@tmp, 2))
-                    word[@_serial_num][rdcnt] := tmp
-                    next
-                else
-                    s := -1                     ' CRC error
-                    quit
-            i2c.stop()
-            return s
         other:
-            return
 
+    i2c.wait(SLAVE_RD)                  ' poll the sensor for readiness
+
+    repeat rdcnt from 0 to len-1
+        tmp := i2c.rdword_msbf(i2c.ACK)
+        crcrd := i2c.rd_byte(rdcnt == (len-1))' read CRC; NAK if last byte
+        if (crcrd == crc.sensirion_crc8(@tmp, 2))
+            if ( reg_nr == core.GET_SN )
+                word[@_serial_num][rdcnt] := tmp
+            else
+                s.word[rdcnt] := tmp
+        else
+            s := -1                     ' CRC error
+            quit
+
+    i2c.stop()
+    return s
 
 PRI writereg(reg_nr, len=0, val=0) | cmd_pkt, tmp
 ' Write register/issue command
+    cmd_pkt.byte[0] := SLAVE_WR
+    cmd_pkt.byte[1] := reg_nr.byte[1]
+    cmd_pkt.byte[2] := reg_nr.byte[0]
+    i2c.start()
+    i2c.wrblock_lsbf(@cmd_pkt, 3)
+
     case reg_nr
         core.IAQ_INIT:
-            cmd_pkt.byte[0] := SLAVE_WR
-            cmd_pkt.byte[1] := reg_nr.byte[1]
-            cmd_pkt.byte[2] := reg_nr.byte[0]
-            i2c.start()
-            i2c.wrblock_lsbf(@cmd_pkt, 3)
-            i2c.stop()
         core.SET_IAQ_BASE, core.SET_ABS_HUM, core.SET_TVOC_BASE:
-            cmd_pkt.byte[0] := SLAVE_WR
-            cmd_pkt.byte[1] := reg_nr.byte[1]
-            cmd_pkt.byte[2] := reg_nr.byte[0]
-            i2c.start()
-            i2c.wrblock_lsbf(@cmd_pkt, 3)
             i2c.wrblock_lsbf(@val, len)
-            i2c.stop()
         other:
             return
 
+    i2c.stop()
 
 DAT
 {
